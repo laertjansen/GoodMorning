@@ -1,0 +1,140 @@
+// Arduino Code
+// LCD 16x2 - PIR Motion Sensor - Servo 
+
+// include the library code:
+#include <LiquidCrystal.h>
+#include <Servo.h>
+
+// Servo
+Servo servo1;
+
+// LCD
+const int rs = 7, en = 8, d4 = 9, d5 = 10, d6 = 11, d7 = 12;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Define array of words
+String words[] = { "YOU GOT THIS.", "HEY CHAMP.", "YOU CAN DO IT.", "YOU'RE SPECIAL.", "BREATHE." };
+String prevWord = "";     
+String currentWord = "";  
+
+// PIR Sensor
+int pirPin = 3;
+int motionStatus = 0;
+int pirState = LOW;
+
+int servoPos1 = 40;  // Initial servo position
+int servoPos2 = 120; // Final servo position
+
+int initialServoPosition = 40;
+bool messageDisplayed = false;
+unsigned long previousMillis = 0;
+const long interval = 5000; // Interval for how long the message should be displayed
+
+// LCD heart
+byte Heart[8] = {
+  0b00000,
+  0b01010,
+  0b11111,
+  0b11111,
+  0b01110,
+  0b00100,
+  0b00000,
+  0b00000
+};
+
+unsigned long animationStartTime = 0;
+unsigned long animationDuration = 500; // Duration of the animation in milliseconds
+int currentServoPos = initialServoPosition;
+int targetServoPos = initialServoPosition;
+
+void setup() {
+  Serial.begin(9600);
+
+  // LCD initialization
+  lcd.begin(16, 2);
+  lcd.clear();
+
+  pinMode(pirPin, INPUT);
+
+  servo1.attach(13); 
+  servo1.write(initialServoPosition);
+
+  lcd.createChar(0, Heart);  // Create custom character for heart
+
+  delay(1000);
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  motionStatus = digitalRead(pirPin);
+
+  if (motionStatus == HIGH) {
+    if (pirState == LOW) {
+      Serial.println("Motion Detected");
+      if (!messageDisplayed) {  
+        currentWord = getRandomWord();
+        lcd.clear();
+
+        // Display small hearts on the first row of the LCD
+        for (int i = 0; i < 16; i++) {
+          lcd.setCursor(i, 0);
+          lcd.write(byte(0));  // Print small heart
+        }
+
+        lcd.setCursor(0, 1);
+        lcd.print(currentWord);
+
+        messageDisplayed = true;
+        previousMillis = currentMillis;
+      }
+
+      pirState = HIGH;
+    }
+
+    if (messageDisplayed && currentMillis - previousMillis >= interval) {
+      lcd.clear();       
+      currentWord = "";  
+      messageDisplayed = false;
+    }
+  } else {
+    if (pirState == HIGH) {
+      Serial.println("No Motion");
+      lcd.clear();       
+      currentWord = "";  
+      messageDisplayed = false;
+    }
+    pirState = LOW;
+  }
+
+  if (messageDisplayed) {
+    animateServo();
+  }
+
+  delay(10);
+}
+
+String getRandomWord() {
+  int randomIndex = random(0, 5);
+  while (words[randomIndex] == prevWord) {
+    randomIndex = random(0, 5);
+  }
+  prevWord = words[randomIndex];
+  return words[randomIndex];
+}
+
+void animateServo() {
+  unsigned long currentTime = millis();
+
+  // Check if animation is complete
+  if (currentTime - animationStartTime < animationDuration) {
+    // Calculate current position
+    int newPos = map(currentTime, animationStartTime, animationStartTime + animationDuration, currentServoPos, targetServoPos);
+    servo1.write(newPos);
+  } else {
+    // Start a new animation
+    animationStartTime = currentTime;
+    currentServoPos = targetServoPos;
+    targetServoPos = (targetServoPos == servoPos1) ? servoPos2 : servoPos1;
+  }
+}
